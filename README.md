@@ -1,5 +1,7 @@
 # 🌌 Resolve Downloader
 
+![Resolve Downloader UI](https://raw.githubusercontent.com/akzzy/Resolve-Downloader/main/Resolve-Downloader-Cover.png)
+
 > A premium, glassmorphic native Workflow Integration plugin for DaVinci Resolve that downloads video and audio from social media platforms and imports them directly into your active project with a single click.
 
 ---
@@ -54,13 +56,6 @@ If you prefer to install manually without running the batch script:
 
 ---
 
-## 🎨 Premium UI Preview
-
-Here is a glimpse of the gorgeous, native-feeling dark-mode glassmorphism interface running inside the Resolve workflow panel:
-
-![Resolve Downloader UI](https://raw.githubusercontent.com/akzzy/Resolve-Downloader/main/downloader_loaded_1779176622710.png)
-
----
 
 ## 💡 Troubleshooting & Tips
 
