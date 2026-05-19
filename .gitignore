@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local logs
+*.log
+server_err.log
+server_out.log
+downloader_error.log
+
+# Local user configuration settings
+settings.json
