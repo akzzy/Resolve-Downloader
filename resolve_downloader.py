@@ -9,6 +9,29 @@ import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import yt_dlp
 
+# Programmatically configure DaVinci Resolve scripting environment variables for Windows
+def setup_resolve_env():
+    if sys.platform == "win32":
+        # Resolve Scripting API path
+        program_data = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        api_path = os.path.join(program_data, "Blackmagic Design", "DaVinci Resolve", "Support", "Developer", "Scripting", "API")
+        if not os.environ.get("RESOLVE_SCRIPT_API"):
+            os.environ["RESOLVE_SCRIPT_API"] = api_path
+            
+        # Resolve Scripting Library path
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        lib_path = os.path.join(program_files, "Blackmagic Design", "DaVinci Resolve", "fusionscript.dll")
+        if not os.environ.get("RESOLVE_SCRIPT_LIB"):
+            os.environ["RESOLVE_SCRIPT_LIB"] = lib_path
+            
+        # Append Modules folder to path
+        modules_path = os.path.join(program_data, "Blackmagic Design", "DaVinci Resolve", "Support", "Developer", "Scripting", "Modules")
+        if os.path.isdir(modules_path) and modules_path not in sys.path:
+            sys.path.append(modules_path)
+
+# Initialize paths at import time
+setup_resolve_env()
+
 # Global configuration and state
 DEFAULT_PORT = 8554
 PROGRESS_STATE = {
@@ -50,20 +73,13 @@ def save_settings(download_dir):
 def import_to_resolve(file_path):
     """Imports the downloaded file into DaVinci Resolve Media Pool and current timeline."""
     try:
+        setup_resolve_env()
         import DaVinciResolveScript as dvr
-    except ImportError:
-        # Dynamically search ProgramData for the scripting module
-        modules_path = os.path.join(
-            os.environ.get("PROGRAMDATA", r"C:\ProgramData"),
-            "Blackmagic Design", "DaVinci Resolve", "Support",
-            "Developer", "Scripting", "Modules"
-        )
-        if os.path.isdir(modules_path) and modules_path not in sys.path:
-            sys.path.append(modules_path)
-        try:
-            import DaVinciResolveScript as dvr
-        except ImportError:
-            return False, "Could not load Resolve Scripting module. Ensure Python scripting is set up."
+    except Exception as e:
+        error_msg = str(e)
+        if "fusionscript" in error_msg.lower() or "initialization" in error_msg.lower():
+            return False, "Resolve API initialization failed. Ensure Python is 64-bit and DaVinci Resolve preferences -> System -> General -> External Scripting is set to 'Local' or 'Network'."
+        return False, f"Could not load Resolve Scripting module: {error_msg}. Ensure Python scripting is enabled."
 
     resolve = dvr.scriptapp("Resolve")
     if not resolve:
@@ -98,19 +114,10 @@ def import_to_resolve(file_path):
 def append_to_active_timeline(file_path):
     """Appends the previously imported Media Pool item to the active timeline in Resolve."""
     try:
+        setup_resolve_env()
         import DaVinciResolveScript as dvr
-    except ImportError:
-        modules_path = os.path.join(
-            os.environ.get("PROGRAMDATA", r"C:\ProgramData"),
-            "Blackmagic Design", "DaVinci Resolve", "Support",
-            "Developer", "Scripting", "Modules"
-        )
-        if os.path.isdir(modules_path) and modules_path not in sys.path:
-            sys.path.append(modules_path)
-        try:
-            import DaVinciResolveScript as dvr
-        except ImportError:
-            return False, "Could not load Resolve Scripting module."
+    except Exception as e:
+        return False, f"Could not load Resolve Scripting module: {str(e)}"
 
     resolve = dvr.scriptapp("Resolve")
     if not resolve:
