@@ -615,12 +615,24 @@ def install_plugin():
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 
 let mainWindow = null;
 let pythonProcess = null;
-const PORT = 8554;
+let PORT = 8554;
 
-function startPythonServer() {
+function getFreePort(callback) {
+    const server = net.createServer();
+    server.listen(0, '127.0.0.1', () => {
+        const port = server.address().port;
+        server.close(() => {
+            callback(port);
+        });
+    });
+}
+
+function startPythonServer(port) {
+    PORT = port;
     const pythonScript = path.join(__dirname, 'resolve_downloader.py');
     
     pythonProcess = spawn('python', [pythonScript, '--server', '--port', PORT], {
@@ -654,7 +666,7 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 800,
         height: 700,
-        title: "Resolve Video Downloader",
+        title: "Resolve Downloader",
         autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
@@ -670,14 +682,16 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-    startPythonServer();
-    checkServerReady((success) => {
-        if (success) {
-            createWindow();
-        } else {
-            console.error("Python server failed to report ready.");
-            createWindow();
-        }
+    getFreePort((freePort) => {
+        startPythonServer(freePort);
+        checkServerReady((success) => {
+            if (success) {
+                createWindow();
+            } else {
+                console.error("Python server failed to report ready.");
+                createWindow();
+            }
+        });
     });
 });
 
@@ -1473,6 +1487,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="footer-status">
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusText">Connecting to DaVinci Resolve API...</span>
+                <a href="#" id="lnkTroubleshoot" style="display: none; color: #a78bfa; margin-left: 8px; font-size: 0.8rem; text-decoration: underline; font-weight: 500;">Troubleshoot</a>
             </div>
 
             <!-- Settings Modal -->
@@ -1487,6 +1502,26 @@ HTML_CONTENT = """<!DOCTYPE html>
                         <input type="text" class="settings-input" id="settingDownloadDir" placeholder="e.g. C:\\Downloads">
                     </div>
                     <button class="btn-save-settings" id="btnSaveSettings">Save Configuration</button>
+                </div>
+            </div>
+
+            <!-- Troubleshooting Modal -->
+            <div class="modal-overlay" id="troubleshootModal">
+                <div class="modal-content" style="max-width: 440px;">
+                    <div class="modal-header">
+                        <span class="modal-title">Connection Help</span>
+                        <button class="btn-close-modal" id="btnCloseTroubleshoot">✕</button>
+                    </div>
+                    <div style="font-size: 0.88rem; line-height: 1.5; color: var(--text-main); margin-bottom: 15px; text-align: left;">
+                        <p style="margin-bottom: 12px; color: var(--warning-color); font-weight: 600; font-size: 0.95rem;">Resolve scripting connection was unsuccessful. Please check these settings:</p>
+                        <ol style="margin-left: 20px; display: flex; flex-direction: column; gap: 10px; list-style-type: decimal;">
+                            <li><strong>Open Resolve Studio</strong>: Ensure DaVinci Resolve Studio (paid version) is active and running on your system with a project open.</li>
+                            <li><strong>Enable External Scripting</strong>: In Resolve's top menu, go to <em>Preferences -> System -> General</em> (or <em>Control Panels -> General</em>) and verify <strong>External Scripting</strong> is set to <strong>Local</strong> or <strong>Network</strong>.</li>
+                            <li><strong>Python 64-bit Verification</strong>: Verify your system runs <strong>Python 64-bit</strong>. 32-bit Python cannot load Resolve's dll wrapper.</li>
+                            <li><strong>UAC Permission Match</strong>: If Resolve runs as Administrator, this plugin must run with the same administrator privilege to communicate across processes.</li>
+                        </ol>
+                    </div>
+                    <button class="btn-save-settings" id="btnOkTroubleshoot" style="width: 100%; margin-top: 10px;">Got it</button>
                 </div>
             </div>
         </div>
@@ -1514,7 +1549,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         const progressEta = document.getElementById('progressEta');
         const timelineActionContainer = document.getElementById('timelineActionContainer');
         const btnAddToTimeline = document.getElementById('btnAddToTimeline');
-         const btnPaste = document.getElementById('btnPaste');
+        const btnPaste = document.getElementById('btnPaste');
         const btnSettings = document.getElementById('btnSettings');
         const settingsModal = document.getElementById('settingsModal');
         const btnCloseSettings = document.getElementById('btnCloseSettings');
@@ -1523,6 +1558,11 @@ HTML_CONTENT = """<!DOCTYPE html>
         
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
+        const lnkTroubleshoot = document.getElementById('lnkTroubleshoot');
+        
+        const troubleshootModal = document.getElementById('troubleshootModal');
+        const btnCloseTroubleshoot = document.getElementById('btnCloseTroubleshoot');
+        const btnOkTroubleshoot = document.getElementById('btnOkTroubleshoot');
 
         let activeVideoData = null;
         let progressInterval = null;
@@ -1549,17 +1589,32 @@ HTML_CONTENT = """<!DOCTYPE html>
                     statusDot.classList.add('active');
                     statusText.textContent = "Natively Connected to Resolve API";
                     statusText.style.color = "var(--text-main)";
+                    lnkTroubleshoot.style.display = "none";
                 } else {
                     statusDot.classList.remove('active');
                     statusText.textContent = "Resolve not open / API scripting disabled";
                     statusText.style.color = "var(--warning-color)";
+                    lnkTroubleshoot.style.display = "inline";
                 }
             } catch (e) {
                 statusDot.classList.remove('active');
                 statusText.textContent = "Lost server connection";
                 statusText.style.color = "var(--danger-color)";
+                lnkTroubleshoot.style.display = "inline";
             }
         }
+
+        // Troubleshooting Modal Handlers
+        lnkTroubleshoot.addEventListener('click', (e) => {
+            e.preventDefault();
+            troubleshootModal.classList.add('active');
+        });
+        btnCloseTroubleshoot.addEventListener('click', () => {
+            troubleshootModal.classList.remove('active');
+        });
+        btnOkTroubleshoot.addEventListener('click', () => {
+            troubleshootModal.classList.remove('active');
+        });
         
         setInterval(checkResolveStatus, 3000);
         checkResolveStatus();
